@@ -114,6 +114,9 @@ def _dummy_api_keys(monkeypatch):
         # `or` not a .get default: an env var present but empty (e.g. a key left
         # blank in a .env copied from .env.example) must still get the placeholder.
         monkeypatch.setenv(env_var, os.environ.get(env_var) or "placeholder")
+    # The FinMind token is optional: present but empty reads as "skipped", so
+    # no test is asked for it and a contributor's own token never reaches one.
+    monkeypatch.setenv("FINMIND_API_TOKEN", "")
 
 
 @pytest.fixture(autouse=True)

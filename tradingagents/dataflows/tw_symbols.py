@@ -109,6 +109,22 @@ def _resolve_name(name: str) -> str:
     raise UnknownTaiwanStockError(f"no Taiwan-listed stock is named {name!r}; enter the stock code instead")
 
 
+def looks_taiwanese(raw: str) -> bool:
+    """Whether an entry names a Taiwan stock: ``2330.TW``, or in the Taiwan
+    market mode a bare code (``2330``) or a non-ASCII name (``台積電``).
+
+    Purely syntactic, no lookup: it decides whether Taiwan data will be needed.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        return False
+    text = raw.strip()
+    if _SUFFIXED.match(text.upper()):
+        return True
+    if get_config().get("market", "tw") != "tw":
+        return False
+    return bool(_BARE_CODE.match(text.upper())) or not text.isascii()
+
+
 def resolve_tw_symbol(raw: str) -> str:
     """Resolve a bare Taiwan code or a Chinese name to ``CODE.TW`` / ``CODE.TWO``.
 

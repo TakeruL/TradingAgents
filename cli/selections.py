@@ -25,6 +25,7 @@ from cli.prompts import (
     detect_asset_type,
     ensure_api_key,
     get_ticker,
+    offer_finmind_token,
     parse_analysis_date,
     parse_analysts,
     parse_ticker,
@@ -128,6 +129,7 @@ def _prompt_selections(prefs, flags):
 
     # Step 1: Ticker symbol
     if flags.get("ticker") is not None:
+        offer_finmind_token(flags["ticker"])
         selected_ticker = _from_flag(parse_ticker, flags["ticker"])
         console.print(f"[green]✓ Ticker from --ticker:[/green] {selected_ticker}")
     else:

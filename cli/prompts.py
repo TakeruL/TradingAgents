@@ -62,12 +62,25 @@ def get_ticker() -> str:
 
     if not ticker.strip():
         return "SPY"
+    offer_finmind_token(ticker)
     try:
         return normalize_ticker_symbol(ticker)
     except ValueError as exc:
         # A Taiwan stock name that matched nothing, or several: ask again.
         console.print(f"[red]{exc}[/red]")
         return get_ticker()
+
+
+def offer_finmind_token(raw_ticker: str) -> None:
+    """Ask for the FinMind token when the entry names a Taiwan stock.
+
+    Called before the entry is resolved, since resolving ``2330`` or ``台積電``
+    already reads FinMind.
+    """
+    from tradingagents.dataflows.tw_symbols import looks_taiwanese
+
+    if looks_taiwanese(raw_ticker):
+        ensure_finmind_token()
 
 
 def parse_ticker(value: str) -> str:
@@ -684,16 +697,75 @@ def ensure_api_key(provider: str) -> str | None:
         )
         return None
 
+    env_path = save_env_value(env_var, key)
+    console.print(f"[green]Saved {env_var} to {env_path}[/green]")
+    return key
+
+
+def save_env_value(env_var: str, value: str) -> str:
+    """Write ``env_var=value`` to the project's .env and export it; return the file's path.
+
+    The .env is the one python-dotenv finds from the working directory, created
+    there when absent.
+    """
     env_path = find_dotenv(usecwd=True) or str(Path.cwd() / ".env")
     # The file holds credentials, so make it owner-only before writing: create
     # it 0600 when absent, and tighten an existing one (set_key keeps the mode).
     if not os.path.exists(env_path):
         os.close(os.open(env_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
     os.chmod(env_path, 0o600)
-    set_key(env_path, env_var, key)
-    os.environ[env_var] = key
-    console.print(f"[green]Saved {env_var} to {env_path}[/green]")
-    return key
+    set_key(env_path, env_var, value)
+    os.environ[env_var] = value
+    return env_path
+
+
+FINMIND_TOKEN_ENV = "FINMIND_API_TOKEN"
+
+
+def ensure_finmind_token() -> str | None:
+    """Offer to save a FinMind token, once, before a Taiwan stock is looked up.
+
+    The token is optional (FinMind serves a smaller anonymous quota), so this
+    never blocks a run. It asks only when the variable is absent altogether:
+    a token already set is used, and an empty value is the mark of an earlier
+    "skip", so the question is not repeated on every run. With no terminal
+    (an unattended run) it does not ask.
+    """
+    if FINMIND_TOKEN_ENV in os.environ:
+        return os.environ[FINMIND_TOKEN_ENV].strip() or None
+    if not sys.stdin.isatty():
+        return None
+
+    console.print(
+        f"\n[yellow]{FINMIND_TOKEN_ENV} is not set.[/yellow] Taiwan market data comes from FinMind, "
+        "whose anonymous quota is a few hundred requests an hour; a free token raises it.\n"
+        "Register at https://finmindtrade.com/ and paste the token from your account page, "
+        "or press Enter to skip (the official TWSE/TPEx data is used when the quota runs out)."
+    )
+    token = (questionary.password(
+        f"Paste your {FINMIND_TOKEN_ENV} (will be saved to .env; Enter to skip):",
+        style=questionary.Style([
+            ("text", "fg:cyan"),
+            ("highlighted", "noinherit"),
+        ]),
+    ).ask() or "").strip()
+
+    if not token:
+        # An empty entry records that the question was asked.
+        env_path = save_env_value(FINMIND_TOKEN_ENV, "")
+        console.print(
+            f"[dim]Skipped; using the anonymous quota. Fill in {FINMIND_TOKEN_ENV} in {env_path} "
+            "any time to use a token.[/dim]"
+        )
+        return None
+
+    env_path = save_env_value(FINMIND_TOKEN_ENV, token)
+    # A lookup made before the token was set may have tripped the quota pause.
+    from tradingagents.dataflows.vendors.finmind.common import reset_cooldown
+
+    reset_cooldown()
+    console.print(f"[green]Saved {FINMIND_TOKEN_ENV} to {env_path}[/green]")
+    return token
 
 
 def ask_output_language(default=None) -> str:
