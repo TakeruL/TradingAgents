@@ -14,6 +14,7 @@ from tradingagents.agents.context import (
     get_instrument_context_from_state,
     get_language_instruction,
     get_portfolio_context_from_state,
+    taiwan_guidance,
 )
 from tradingagents.agents.rating import parse_rating
 from tradingagents.agents.schemas import PortfolioDecision, render_pm_decision
@@ -41,7 +42,7 @@ def create_portfolio_manager(llm):
 
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
-{instrument_context}
+{instrument_context}{taiwan_guidance("trading", state["company_of_interest"])}
 
 {portfolio_context}
 

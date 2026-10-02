@@ -6,7 +6,9 @@ from collections.abc import Mapping
 from typing import Any
 
 from tradingagents.dataflows.date_window import is_historical
-from tradingagents.dataflows.symbols import taiwan_listing
+from tradingagents.dataflows.errors import VendorError
+from tradingagents.dataflows.symbols import taiwan_listing, tw_stock_id
+from tradingagents.dataflows.vendors.finmind.listing import stock_profile
 from tradingagents.dataflows.vendors.yahoo.fundamentals import get_company_profile
 
 logger = logging.getLogger(__name__)
@@ -83,9 +85,34 @@ def resolve_instrument_identity(ticker: str) -> dict:
         return {}
 
 
+def _taiwan_identity(ticker: str) -> dict:
+    """The exchange listing's Chinese name and industry for a Taiwan listing, or {}."""
+    try:
+        profile = stock_profile(tw_stock_id(ticker))
+    except VendorError as exc:
+        logger.debug("No Taiwan listing profile for %s: %s", ticker, exc)
+        return {}
+    if not profile:
+        return {}
+    identity = {"exchange": "TWSE (listed)" if profile["listing"] == "twse" else "TPEx (OTC)"}
+    if _clean_identity_value(profile.get("name")):
+        identity["company_name"] = profile["name"]
+    if _clean_identity_value(profile.get("industry")):
+        identity["industry"] = profile["industry"]
+    return identity
+
+
 @functools.lru_cache(maxsize=256)
 def _identity(ticker: str) -> dict:
-    """The vendor's identity fields for ``ticker``; raises if the lookup fails."""
+    """The vendor's identity fields for ``ticker``; raises if the lookup fails.
+
+    A Taiwan listing is named as its exchange lists it (台積電, 半導體業), which is
+    how Taiwan news and forums refer to it; Yahoo's profile is the fallback.
+    """
+    if taiwan_listing(ticker):
+        identity = _taiwan_identity(ticker)
+        if identity.get("company_name"):
+            return identity
     info = get_company_profile(ticker)
     identity: dict[str, str] = {}
     company_name = _clean_identity_value(info.get("longName")) or _clean_identity_value(
@@ -167,7 +194,69 @@ def build_instrument_context(
             " Treat it as a crypto asset rather than a company, and do not "
             "assume company fundamentals are available."
         )
-    return context
+    return context + taiwan_market_rules(ticker)
+
+
+def taiwan_market_rules(ticker: str) -> str:
+    """The Taiwan trading rules every agent should apply, for a Taiwan listing; else ""."""
+    listing = taiwan_listing(ticker)
+    if listing is None:
+        return ""
+    market = "TWSE-listed (上市)" if listing == "twse" else "TPEx OTC-traded (上櫃)"
+    return (
+        f" Taiwan market rules apply: it is {market}; prices are in TWD. Daily moves are capped "
+        "at ±10% of the previous close (limit-up 漲停 / limit-down 跌停), so a stock can lock at "
+        "the limit and leave orders unfilled. Settlement is T+2. The trading unit is a lot (張) "
+        "of 1,000 shares; smaller sizes trade as odd lots (零股). Same-day round trips (現股當沖) "
+        "are allowed. The exchange can flag a stock as an attention stock (注意股) or put it "
+        "under disposition (處置股), which restricts trading (call auctions every few minutes, "
+        "prepaid orders). On an ex-dividend or ex-rights date (除息/除權) the price drops by the "
+        "distribution; regaining the pre-dividend price is called filling the gap (填息/填權). "
+        "Companies publish revenue every month, by the 10th of the following month."
+    )
+
+
+# What each role should do differently for a Taiwan listing.
+_TAIWAN_GUIDANCE = {
+    "market": (
+        "For this Taiwan listing: closes near ±10% are limit moves and mark extreme demand or "
+        "supply; a stock locked at a limit can gap again the next day. Volume from "
+        "get_stock_data is in shares (divide by 1,000 for lots). Yahoo quotes are adjusted for "
+        "dividends and list them in the Dividends column, while FinMind and exchange quotes are "
+        "as traded, so tell an ex-dividend gap from selling, and note whether the price has "
+        "since filled the gap (填息). Watch for attention or disposition status when volume "
+        "and price spike."
+    ),
+    "fundamentals": (
+        "For this Taiwan listing, call get_monthly_revenue: monthly revenue (月營收) is the most "
+        "timely operating signal. Report the latest month's MoM and YoY, the year-to-date YoY, "
+        "the trend over the past year and any record high. From the statements, report the "
+        "gross, operating and net margins (三率) and EPS by quarter (income figures are "
+        "single-quarter; cash flows are year to date as filed), the PE and PB against their "
+        "one-year range, and the cash dividend, payout and ex-dividend dates. Mention guidance "
+        "from the latest earnings call (法說會) only if a tool returned it."
+    ),
+    "news": (
+        "For this Taiwan listing, get_news returns Chinese-language Taiwan financial news; read "
+        "it in full. Weigh the macro forces that move Taiwan stocks: Fed policy and US yields "
+        "(get_macro_indicators 'fed_funds_rate', '10y_treasury'), the semiconductor and AI "
+        "cycle, the TWD exchange rate and foreign capital flows, Taiwan's central bank (CBC) "
+        "rate decisions, export orders, US-China trade and export controls, and cross-strait "
+        "geopolitics (prediction-market topics such as 'Taiwan', 'China tariffs', 'Fed rate cut')."
+    ),
+    "trading": (
+        "For this Taiwan listing, state quantities in lots (張, 1,000 shares) or odd lots (零股) "
+        "and prices in TWD, and respect the ±10% daily limit: a stop-loss may not fill when the "
+        "stock locks limit-down, so size the position for that gap risk. Settlement is T+2."
+    ),
+}
+
+
+def taiwan_guidance(role: str, ticker: str) -> str:
+    """Role-specific instructions for a Taiwan listing, with a leading space; else ""."""
+    if not taiwan_listing(str(ticker)):
+        return ""
+    return " " + _TAIWAN_GUIDANCE[role]
 
 
 def get_instrument_context_from_state(state: Mapping[str, Any]) -> str:
