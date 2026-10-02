@@ -340,3 +340,26 @@ def test_finmind_news_is_fetched_one_day_at_a_time_newest_first(monkeypatch):
     # One day per request (no end date), stopping once three articles are in hand.
     assert asked == [("2026-09-30", None), ("2026-09-29", None)]
     assert out.count("### headline") == 3 and "headline 2026-09-30 0" in out
+
+
+@pytest.mark.unit
+def test_finmind_news_spreads_over_the_window_and_drops_publisher_suffixes(monkeypatch):
+    from tradingagents.dataflows.vendors.finmind import news as fm_news
+
+    def fetch(dataset, data_id=None, start_date=None, end_date=None, ttl_seconds=None):
+        # A busy latest day, then one story a day.
+        count = 10 if start_date == "2026-10-02" else 1
+        return [{"date": f"{start_date} 09:0{i}:00", "title": f"{start_date} 新聞{i} - 經濟日報",
+                 "source": "經濟日報", "link": "https://example.com/very/long"} for i in range(count)] + [
+            {"date": f"{start_date} 08:00:00", "title": f"{start_date} 新聞0 - finance.ettoday.net",
+             "source": "finance.ettoday.net"}]
+
+    set_config({"news_article_limit": 6})
+    monkeypatch.setattr(fm_news, "fetch_dataset", fetch)
+    out = fm_news.get_news("2330.TW", "2026-09-30", "2026-10-02")
+    headlines = [line for line in out.splitlines() if line.startswith("###")]
+    # Three days, at most max(3, ceil(6/3)) = 3 a day; the same story under two publishers once.
+    assert [h.split(" (source")[0] for h in headlines] == [
+        "### 2026-10-02 新聞9", "### 2026-10-02 新聞8", "### 2026-10-02 新聞7",
+        "### 2026-10-01 新聞0", "### 2026-09-30 新聞0"]
+    assert "http" not in out and "CMoney" in out.splitlines()[0]
