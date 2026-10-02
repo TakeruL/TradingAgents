@@ -11,6 +11,7 @@ config = DEFAULT_CONFIG.copy()
 # Initialize with custom config
 ta = TradingAgentsGraph(debug=True, config=config)
 
-# forward propagate
-_, decision = ta.propagate("NVDA", "2026-09-01")
+# forward propagate: a Taiwan code or name ("2330", "台積電") or any
+# exchange-suffixed ticker ("2330.TW", "6488.TWO", "NVDA", "0700.HK")
+_, decision = ta.propagate("2330", "2026-09-01")
 print(decision)

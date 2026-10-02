@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Changes that need action when upgrading are listed under "Upgrading from" in their release.
 
+## [Unreleased]
+
+Taiwan stocks as the default market: codes and names resolve to their
+exchange, Taiwan's own data is served as it was public on the run's date, a
+chips analyst reads institutional flows and margin, and every agent applies
+Taiwan's trading rules. Other markets work as before.
+
+### Added
+
+- **Taiwan market mode** (`market: "tw"`, `TRADINGAGENTS_MARKET`). `2330`, `台積電` or `6488` resolve to `2330.TW` / `6488.TWO` from FinMind's listing, then the TWSE/TPEx company registers; a name that matches nothing or several stocks is refused with the candidates.
+- **FinMind vendor** for Taiwan listings: quotes, statements served once their statutory filing deadline passed, valuation and dividends, monthly revenue from its publication date, institutional flows, margin and short balances, foreign ownership, shareholding distribution, a market overview (TAIEX, market-wide flows and credit, foreign TX futures positioning, USD/TWD) and news. `FINMIND_API_TOKEN` is optional; the CLI offers to save it the first time a Taiwan stock is analyzed. A spent quota pauses FinMind for ten minutes.
+- **TWSE/TPEx official fallback** (vendor `twse`): dated daily reports for quotes, valuation, institutional flows, margin and market totals, and the latest month's revenue, withheld from runs dated before it was due. Requests are spaced per host; the exchange's security page is read as an outage.
+- **Chips analyst** (`chips`), offered for Taiwan listings only; its report reaches the bull and bear researchers and the risk debaters.
+- **Taiwan sentiment sources**: the PTT Stock board and Google News' Taiwan edition replace StockTwits and Reddit for Taiwan listings.
+- New tools: `get_monthly_revenue`, `get_institutional_flows`, `get_margin_short`, `get_foreign_holding`, `get_shareholding_distribution`, `get_tw_market_overview` (category `tw_market_data`).
+
+### Changed
+
+- For Taiwan listings every agent is told the trading rules (±10% limit, T+2, lots and odd lots, attention and disposition stocks, ex-dividend gaps, monthly revenue), and the market, fundamentals and news analysts, the trader and the portfolio manager get role-specific guidance. A Taiwan listing is named as its exchange lists it (台積電).
+- Prompts for every other instrument are unchanged.
+
+### Upgrading
+
+- New defaults: `market` is `tw`, `output_language` is `Traditional Chinese (繁體中文)`, the default analysts include `chips`, and the vendor chains put FinMind and the exchanges first (`core_stock_apis: yfinance,finmind,twse`, `fundamental_data: finmind,twse,sec_edgar,yfinance`, `news_data: finmind,yfinance`, `tw_market_data: finmind,twse`). Non-Taiwan symbols pass the Taiwan vendors without a request.
+- To keep the previous behavior, set `TRADINGAGENTS_MARKET=us` and `TRADINGAGENTS_OUTPUT_LANGUAGE=English`.
+
 ## [0.5.2] — 2026-09-29
 
 Parallel analysts, unattended CLI runs, reports that record what produced them,
