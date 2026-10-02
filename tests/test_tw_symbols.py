@@ -166,13 +166,13 @@ def test_finmind_listing_drops_repeats_and_emerging_shares():
     rows = [
         {"stock_id": "2330", "stock_name": "台積電", "type": "twse", "industry_category": "半導體業"},
         {"stock_id": "2330", "stock_name": "台積電", "type": "twse", "industry_category": "電子工業"},
-        {"stock_id": "6488", "stock_name": "環球晶", "type": "tpex"},
+        {"stock_id": "6488", "stock_name": "環球晶", "type": "tpex", "industry_category": "半導體業"},
         {"stock_id": "7777", "stock_name": "興櫃股", "type": "emerging"},
     ]
     with mock.patch.object(finmind_listing, "fetch_dataset", return_value=rows):
         assert finmind_listing.stock_listing() == [
-            {"stock_id": "2330", "name": "台積電", "listing": "twse"},
-            {"stock_id": "6488", "name": "環球晶", "listing": "tpex"},
+            {"stock_id": "2330", "name": "台積電", "listing": "twse", "industry": "半導體業"},
+            {"stock_id": "6488", "name": "環球晶", "listing": "tpex", "industry": "半導體業"},
         ]
 
 

@@ -154,14 +154,18 @@ def build_default_config() -> dict:
         # routed to vendors you didn't choose. For ordered fallback, list several,
         # e.g. "yfinance,alpha_vantage". "default" uses all available vendors.
         "data_vendors": {
-            "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
+            # Taiwan securities (.TW / .TWO) are served by FinMind, then by the
+            # exchanges' own reports ("twse", TWSE and TPEx) when FinMind's quota
+            # runs out; both pass any other symbol straight to the next vendor.
+            "core_stock_apis": "yfinance,finmind,twse",  # Options: alpha_vantage, yfinance, finmind, twse
             "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
-            # Statements come from SEC EDGAR as filed (US filers), then Yahoo; the
-        # overview and insider tools, which SEC EDGAR does not serve, from Yahoo.
-        "fundamental_data": "sec_edgar,yfinance",  # Options: sec_edgar, alpha_vantage, yfinance
-            "news_data": "yfinance",             # Options: alpha_vantage, yfinance
+            # Statements come from FinMind for Taiwan filers (served once their
+            # filing deadline passed), SEC EDGAR as filed for US filers, then Yahoo.
+            "fundamental_data": "finmind,twse,sec_edgar,yfinance",  # Options: finmind, twse, sec_edgar, alpha_vantage, yfinance
+            "news_data": "finmind,yfinance",     # Options: finmind, alpha_vantage, yfinance
             "macro_data": "fred",                # Options: fred (needs FRED_API_KEY)
             "prediction_markets": "polymarket",  # Options: polymarket (keyless)
+            "tw_market_data": "finmind,twse",    # Options: finmind, twse (Taiwan securities only)
         },
         # Tool-level configuration (takes precedence over category-level)
         "tool_vendors": {

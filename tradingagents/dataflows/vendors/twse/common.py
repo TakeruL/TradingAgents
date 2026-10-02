@@ -69,22 +69,35 @@ def _mark_blocked(host: str) -> None:
         _blocked_until[host] = time.monotonic() + BLOCKED_COOLDOWN_SECONDS
 
 
+def _get(url: str, params: dict | None) -> requests.Response:
+    return requests.get(
+        url,
+        params=params,
+        headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+        timeout=REQUEST_TIMEOUT,
+    )
+
+
 def fetch_json(url: str, params: dict | None = None) -> Any:
-    """GET ``url`` and return its JSON, with every failure as ``VendorUnavailableError``."""
+    """GET ``url`` and return its JSON, with every failure as ``VendorUnavailableError``.
+
+    A dropped connection or a timeout is tried once more, at the host's spacing:
+    both exchanges drop the odd request under load.
+    """
     host = urlsplit(url).hostname or url
     _check_blocked(host)
-    _wait_turn(host)
-    try:
-        response = requests.get(
-            url,
-            params=params,
-            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
-            timeout=REQUEST_TIMEOUT,
-        )
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        status = getattr(getattr(exc, "response", None), "status_code", None)
-        raise VendorUnavailableError(f"{host} request failed ({status or type(exc).__name__})") from exc
+    for attempt in (1, 2):
+        _wait_turn(host)
+        try:
+            response = _get(url, params)
+            response.raise_for_status()
+            break
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            if attempt == 2:
+                raise VendorUnavailableError(f"{host} request failed ({type(exc).__name__})") from exc
+        except requests.RequestException as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            raise VendorUnavailableError(f"{host} request failed ({status or type(exc).__name__})") from exc
 
     text = response.text
     if any(marker in text[:2000] for marker in _SECURITY_PAGE_MARKERS):

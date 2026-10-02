@@ -17,6 +17,12 @@ from tradingagents.dataflows.vendors.alpha_vantage import (
     get_news as get_alpha_vantage_news,
     get_stock as get_alpha_vantage_stock,
 )
+from tradingagents.dataflows.vendors.finmind import (
+    chips as finmind_chips,
+    fundamentals as finmind_fundamentals,
+    news as finmind_news,
+    prices as finmind_prices,
+)
 from tradingagents.dataflows.vendors.fred import get_macro_data as get_fred_macro_data
 from tradingagents.dataflows.vendors.polymarket import (
     get_prediction_markets as get_polymarket_prediction_markets,
@@ -25,6 +31,11 @@ from tradingagents.dataflows.vendors.sec_edgar import (
     get_balance_sheet as get_sec_edgar_balance_sheet,
     get_cashflow as get_sec_edgar_cashflow,
     get_income_statement as get_sec_edgar_income_statement,
+)
+from tradingagents.dataflows.vendors.twse import (
+    chips as twse_chips,
+    market as twse_market,
+    revenue as twse_revenue,
 )
 from tradingagents.dataflows.vendors.yahoo.fundamentals import (
     get_balance_sheet as get_yfinance_balance_sheet,
@@ -83,7 +94,18 @@ TOOLS_CATEGORIES = {
         "tools": [
             "get_prediction_markets",
         ]
-    }
+    },
+    "tw_market_data": {
+        "description": "Taiwan market data: monthly revenue, institutional flows, margin, holders",
+        "tools": [
+            "get_monthly_revenue",
+            "get_institutional_flows",
+            "get_margin_short",
+            "get_foreign_holding",
+            "get_shareholding_distribution",
+            "get_tw_market_overview",
+        ]
+    },
 }
 
 # Optional enrichment categories. These add macro/event context to the news
@@ -91,7 +113,8 @@ TOOLS_CATEGORIES = {
 # sentinel instead of aborting the run (a bad LLM-supplied indicator, a missing
 # key, or a network blip should not crash an analysis over flavour data). Core
 # categories (prices, fundamentals, news) still raise so a broken primary is loud.
-OPTIONAL_CATEGORIES = {"macro_data", "prediction_markets"}
+# Taiwan chip data enriches the picture the same way.
+OPTIONAL_CATEGORIES = {"macro_data", "prediction_markets", "tw_market_data"}
 
 # Mapping of methods to their vendor-specific implementations
 VENDOR_METHODS = {
@@ -99,6 +122,8 @@ VENDOR_METHODS = {
     "get_stock_data": {
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
+        "finmind": finmind_prices.get_stock_data,
+        "twse": twse_market.get_stock_data,
     },
     # technical_indicators
     "get_indicators": {
@@ -109,18 +134,23 @@ VENDOR_METHODS = {
     "get_fundamentals": {
         "alpha_vantage": get_alpha_vantage_fundamentals,
         "yfinance": get_yfinance_fundamentals,
+        "finmind": finmind_fundamentals.get_fundamentals,
+        "twse": twse_market.get_fundamentals,
     },
     "get_balance_sheet": {
+        "finmind": finmind_fundamentals.get_balance_sheet,
         "alpha_vantage": get_alpha_vantage_balance_sheet,
         "sec_edgar": get_sec_edgar_balance_sheet,
         "yfinance": get_yfinance_balance_sheet,
     },
     "get_cashflow": {
+        "finmind": finmind_fundamentals.get_cashflow,
         "alpha_vantage": get_alpha_vantage_cashflow,
         "sec_edgar": get_sec_edgar_cashflow,
         "yfinance": get_yfinance_cashflow,
     },
     "get_income_statement": {
+        "finmind": finmind_fundamentals.get_income_statement,
         "alpha_vantage": get_alpha_vantage_income_statement,
         "sec_edgar": get_sec_edgar_income_statement,
         "yfinance": get_yfinance_income_statement,
@@ -129,6 +159,7 @@ VENDOR_METHODS = {
     "get_news": {
         "alpha_vantage": get_alpha_vantage_news,
         "yfinance": get_news_yfinance,
+        "finmind": finmind_news.get_news,
     },
     "get_global_news": {
         "yfinance": get_global_news_yfinance,
@@ -145,6 +176,30 @@ VENDOR_METHODS = {
     # prediction_markets
     "get_prediction_markets": {
         "polymarket": get_polymarket_prediction_markets,
+    },
+    # tw_market_data: FinMind, then the exchanges' own reports. The official
+    # backup has no foreign-holding or shareholding-distribution series.
+    "get_monthly_revenue": {
+        "finmind": finmind_fundamentals.get_monthly_revenue,
+        "twse": twse_revenue.get_monthly_revenue,
+    },
+    "get_institutional_flows": {
+        "finmind": finmind_chips.get_institutional_flows,
+        "twse": twse_chips.get_institutional_flows,
+    },
+    "get_margin_short": {
+        "finmind": finmind_chips.get_margin_short,
+        "twse": twse_chips.get_margin_short,
+    },
+    "get_foreign_holding": {
+        "finmind": finmind_chips.get_foreign_holding,
+    },
+    "get_shareholding_distribution": {
+        "finmind": finmind_chips.get_shareholding_distribution,
+    },
+    "get_tw_market_overview": {
+        "finmind": finmind_chips.get_tw_market_overview,
+        "twse": twse_chips.get_tw_market_overview,
     },
 }
 

@@ -27,5 +27,15 @@ def stock_listing() -> list[dict]:
         if not code or kind not in _LISTINGS or code in seen:
             continue
         seen.add(code)
-        listing.append({"stock_id": code, "name": str(row.get("stock_name") or "").strip(), "listing": kind})
+        listing.append({
+            "stock_id": code,
+            "name": str(row.get("stock_name") or "").strip(),
+            "listing": kind,
+            "industry": str(row.get("industry_category") or "").strip(),
+        })
     return listing
+
+
+def stock_profile(stock_id: str) -> dict | None:
+    """The listing entry for one code, or None."""
+    return next((row for row in stock_listing() if row["stock_id"] == stock_id), None)

@@ -12,6 +12,8 @@ from langgraph.prebuilt import InjectedState
 from tradingagents.dataflows.date_window import as_of, as_of_window
 from tradingagents.dataflows.errors import NoMarketDataError, VendorUnavailableError
 from tradingagents.dataflows.router import no_data_available, route_to_vendor, vendor_unavailable
+from tradingagents.dataflows.symbols import taiwan_listing
+from tradingagents.dataflows.tw_common import not_taiwan_notice
 from tradingagents.dataflows.vendors.yahoo.snapshot import build_verified_market_snapshot
 
 
@@ -280,3 +282,143 @@ def get_prediction_markets(
         str: A formatted markdown report of matching prediction markets
     """
     return route_to_vendor("get_prediction_markets", topic, limit, trade_date or None)
+
+
+# --- Taiwan market data ------------------------------------------------------
+# These cover Taiwan-listed securities (.TW / .TWO) only; any other instrument
+# gets a not-applicable notice without a vendor call.
+
+
+@tool
+def get_monthly_revenue(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"],
+    months: Annotated[int, "how many recent months to show (default 12)"] = 12,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve the monthly revenue of the Taiwan-listed company under analysis
+    (月營收), with month-over-month, year-over-year and year-to-date growth.
+    Taiwan companies publish revenue every month by the 10th; only months
+    published by curr_date are returned. Uses the configured tw_market_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+        months (int): How many recent months to show, default 12
+    Returns:
+        str: A markdown table of monthly revenue and growth rates
+    """
+    if not taiwan_listing(ticker):
+        return not_taiwan_notice("get_monthly_revenue", ticker)
+    return route_to_vendor("get_monthly_revenue", ticker, as_of(curr_date, trade_date), months)
+
+
+@tool
+def get_institutional_flows(
+    symbol: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"],
+    look_back_days: Annotated[int, "calendar days to look back (default 30)"] = 30,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve daily net buying and selling by Taiwan's three institutional
+    investor groups (三大法人: foreign investors, investment trusts, dealers)
+    in the Taiwan-listed stock under analysis, in lots, with buying/selling
+    streaks and 5/10/20-day totals. Uses the configured tw_market_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+        look_back_days (int): Calendar days to look back, default 30
+    Returns:
+        str: A summary and a markdown table of daily net lots per group
+    """
+    if not taiwan_listing(symbol):
+        return not_taiwan_notice("get_institutional_flows", symbol)
+    return route_to_vendor("get_institutional_flows", symbol, as_of(curr_date, trade_date), look_back_days)
+
+
+@tool
+def get_margin_short(
+    symbol: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"],
+    look_back_days: Annotated[int, "calendar days to look back (default 30)"] = 30,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve margin purchase and short sale balances (融資融券) for the
+    Taiwan-listed stock under analysis: daily balances in lots, their changes,
+    the short-to-margin ratio (券資比) and margin utilization (融資使用率).
+    Uses the configured tw_market_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+        look_back_days (int): Calendar days to look back, default 30
+    Returns:
+        str: A summary and a markdown table of daily credit balances
+    """
+    if not taiwan_listing(symbol):
+        return not_taiwan_notice("get_margin_short", symbol)
+    return route_to_vendor("get_margin_short", symbol, as_of(curr_date, trade_date), look_back_days)
+
+
+@tool
+def get_foreign_holding(
+    symbol: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"],
+    look_back_days: Annotated[int, "calendar days to look back (default 30)"] = 30,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve the foreign ownership ratio (外資持股比例) of the Taiwan-listed
+    stock under analysis, daily, with the remaining room under the foreign
+    ownership limit. Uses the configured tw_market_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+        look_back_days (int): Calendar days to look back, default 30
+    Returns:
+        str: A markdown table of daily foreign holding
+    """
+    if not taiwan_listing(symbol):
+        return not_taiwan_notice("get_foreign_holding", symbol)
+    return route_to_vendor("get_foreign_holding", symbol, as_of(curr_date, trade_date), look_back_days)
+
+
+@tool
+def get_shareholding_distribution(
+    symbol: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"],
+    weeks: Annotated[int, "how many recent weeks to show (default 8)"] = 8,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve the weekly shareholding distribution (集保股權分散) of the
+    Taiwan-listed stock under analysis: the share of stock held by large
+    holders (over 400 and over 1,000 lots) and holder counts, to see whether
+    shares are concentrating in big hands or spreading to retail.
+    Uses the configured tw_market_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+        weeks (int): How many recent weeks to show, default 8
+    Returns:
+        str: A markdown table of weekly holding concentration
+    """
+    if not taiwan_listing(symbol):
+        return not_taiwan_notice("get_shareholding_distribution", symbol)
+    return route_to_vendor("get_shareholding_distribution", symbol, as_of(curr_date, trade_date), weeks)
+
+
+@tool
+def get_tw_market_overview(
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"],
+    look_back_days: Annotated[int, "calendar days to look back (default 14)"] = 14,
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """
+    Retrieve the Taiwan market backdrop: the TAIEX, market-wide institutional
+    net buying (in TWD 100 million), market margin balances, foreign net open
+    interest in TAIEX futures, and the USD/TWD rate.
+    Uses the configured tw_market_data vendor.
+    Args:
+        curr_date (str): Current date you are trading at, yyyy-mm-dd
+        look_back_days (int): Calendar days to look back, default 14
+    Returns:
+        str: Markdown tables for each market series
+    """
+    return route_to_vendor("get_tw_market_overview", as_of(curr_date, trade_date), look_back_days)
