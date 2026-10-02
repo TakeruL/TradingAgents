@@ -7,7 +7,9 @@ import yfinance as yf
 from tradingagents.dataflows.config import get_config
 from tradingagents.dataflows.errors import NoMarketDataError
 from tradingagents.dataflows.files import replace_file
-from tradingagents.dataflows.symbols import normalize_symbol, safe_ticker_component
+from tradingagents.dataflows.symbols import normalize_symbol, safe_ticker_component, taiwan_listing, tw_stock_id
+from tradingagents.dataflows.tw_common import ttl_for
+from tradingagents.dataflows.vendors.finmind.common import fetch_dataset
 from tradingagents.dataflows.vendors.yahoo.common import raise_for_empty, yf_retry
 
 logger = logging.getLogger(__name__)
@@ -86,6 +88,36 @@ def _fill_price_gaps(data: pd.DataFrame) -> pd.DataFrame:
     # copy() so a filtered (sliced) input is written to safely, not via a view.
     data = data.dropna(subset=["Close"]).copy()
     data[price_cols] = data[price_cols].ffill().bfill()
+    return data
+
+
+def fill_tw_closes(data: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    """Take a Taiwan listing's trailing closeless bars from FinMind.
+
+    Yahoo sometimes leaves a finished TWSE/TPEx session with volume but no
+    prices, still blank the next day. FinMind has the official quote, so take it
+    rather than dropping the session. Only trailing bars are filled: they
+    are the newest, where Yahoo's dividend-adjusted prices equal the traded ones.
+    """
+    if data.empty or pd.notna(data["Close"].iloc[-1]) or taiwan_listing(symbol) is None:
+        return data
+    settled = data["Close"].notna().to_numpy().nonzero()[0]
+    trailing = data.index[settled[-1] + 1 if settled.size else 0:]
+    days = pd.to_datetime(data.loc[trailing, "Date"]).dt.strftime("%Y-%m-%d")
+    try:
+        rows = fetch_dataset(
+            "TaiwanStockPrice", data_id=tw_stock_id(symbol),
+            start_date=days.iloc[0], end_date=days.iloc[-1], ttl_seconds=ttl_for(days.iloc[-1]),
+        )
+    except Exception as exc:  # best effort: Yahoo's frame still stands without it
+        logger.warning("%s: FinMind could not fill closeless bars: %s", symbol, exc)
+        return data
+    quotes = {r["date"]: r for r in rows if r.get("close")}
+    data = data.copy()
+    for idx, day in days.items():
+        q = quotes.get(day)
+        if q:
+            data.loc[idx, ["Open", "High", "Low", "Close"]] = [q["open"], q["max"], q["min"], q["close"]]
     return data
 
 
@@ -227,7 +259,7 @@ def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataF
     data = _clean_dataframe(data)
 
     # Filter to as_of_date to prevent look-ahead bias in backtesting.
-    data = data[data["Date"] <= as_of_dt]
+    data = fill_tw_closes(data[data["Date"] <= as_of_dt], symbol)
 
     # A closeless newest bar is an unsettled session, not a symbol without data.
     # _fill_price_gaps below drops it, here and mid-series alike, so the frame

@@ -10,7 +10,7 @@ from stockstats import wrap
 from tradingagents.dataflows.errors import NoMarketDataError, VendorError
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.common import raise_for_empty, yf_retry
-from tradingagents.dataflows.vendors.yahoo.ohlcv import _assert_ohlcv_not_stale, load_ohlcv
+from tradingagents.dataflows.vendors.yahoo.ohlcv import _assert_ohlcv_not_stale, fill_tw_closes, load_ohlcv
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,7 @@ def get_YFin_data_online(
     # Remove timezone info from index for cleaner output
     if data.index.tz is not None:
         data.index = data.index.tz_localize(None)
+    data = fill_tw_closes(data.rename_axis("Date").reset_index(), symbol).set_index("Date")
 
     # Reject a stale frame (e.g. a year-old partial response) before it is
     # formatted into the report. Raises NoMarketDataError, which the router
