@@ -181,16 +181,16 @@ def _prompt_selections(prefs, flags):
         output_language = ask_output_language(prefs.get("output_language"))
 
     # Step 4: Select analysts
-    prefs = sanitize(prefs, asset_type.value)
+    prefs = sanitize(prefs, asset_type.value, selected_ticker)
     if flags.get("analysts") is not None:
-        selected_analysts = _from_flag(parse_analysts, flags["analysts"], asset_type)
+        selected_analysts = _from_flag(parse_analysts, flags["analysts"], asset_type, selected_ticker)
     else:
         console.print(
             create_question_box(
                 "Step 4: Analysts Team", "Select your LLM analyst agents for the analysis"
             )
         )
-        selected_analysts = select_analysts(asset_type, prefs.get("analysts"))
+        selected_analysts = select_analysts(asset_type, prefs.get("analysts"), selected_ticker)
     console.print(
         f"[green]Selected analysts:[/green] {', '.join(analyst.value for analyst in selected_analysts)}"
     )

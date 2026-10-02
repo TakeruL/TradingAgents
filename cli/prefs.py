@@ -59,8 +59,8 @@ def save_last_run(selections: dict) -> None:
         return
 
 
-def sanitize(prefs: dict, asset_type) -> dict:
-    """Keep only the remembered answers that are still choosable now."""
+def sanitize(prefs: dict, asset_type, ticker: str | None = None) -> dict:
+    """Keep only the remembered answers that are still choosable now (for ``ticker``, when given)."""
     kept: dict = {}
     if isinstance(prefs.get("output_language"), str):
         kept["output_language"] = prefs["output_language"]
@@ -69,7 +69,7 @@ def sanitize(prefs: dict, asset_type) -> dict:
 
     known = {a.value for a in AnalystType}
     analysts = [a for a in prefs.get("analysts") or [] if a in known]
-    allowed = filter_analysts_for_asset_type([AnalystType(a) for a in analysts], AssetType(asset_type))
+    allowed = filter_analysts_for_asset_type([AnalystType(a) for a in analysts], AssetType(asset_type), ticker)
     if allowed:
         kept["analysts"] = [a.value for a in allowed]
 

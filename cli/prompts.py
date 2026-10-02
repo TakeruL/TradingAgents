@@ -19,6 +19,7 @@ ANALYST_CHOICES = [
     ("Sentiment Analyst", AnalystType.SOCIAL),
     ("News Analyst", AnalystType.NEWS),
     ("Fundamentals Analyst", AnalystType.FUNDAMENTALS),
+    ("Chips Analyst (籌碼面, Taiwan stocks)", AnalystType.CHIPS),
 ]
 
 CRYPTO_SUFFIXES = ("-USD", "-USDT", "-USDC", "-BTC", "-ETH")
@@ -101,7 +102,7 @@ def parse_analysis_date(value: str) -> str:
     return day.isoformat()
 
 
-def parse_analysts(value: str, asset_type: AssetType) -> list[AnalystType]:
+def parse_analysts(value: str, asset_type: AssetType, ticker: str | None = None) -> list[AnalystType]:
     """Comma-separated analyst names, in the canonical order, checked against the asset."""
     # "sentiment" is the name users see; the analyst's key is "social".
     names = [{"sentiment": "social"}.get(n, n) for n in (n.strip().lower() for n in value.split(",")) if n]
@@ -112,10 +113,11 @@ def parse_analysts(value: str, asset_type: AssetType) -> list[AnalystType]:
     if unknown:
         choices = ", ".join("sentiment" if name == "social" else name for name in known)
         raise ValueError(f"unknown analyst {', '.join(unknown)}; choose from {choices}")
-    available = filter_analysts_for_asset_type(list(known.values()), asset_type)
+    available = filter_analysts_for_asset_type(list(known.values()), asset_type, ticker)
     unavailable = [n for n in names if known[n] not in available]
     if unavailable:
-        raise ValueError(f"{', '.join(unavailable)} is not available for {asset_type.value}")
+        subject = ticker if ticker and AnalystType.CHIPS.value in unavailable else asset_type.value
+        raise ValueError(f"{', '.join(unavailable)} is not available for {subject}")
     return [a for a in available if a.value in names]
 
 
@@ -152,15 +154,18 @@ def detect_asset_type(ticker: str) -> AssetType:
 
 
 def filter_analysts_for_asset_type(
-    analysts: list[AnalystType], asset_type: AssetType
+    analysts: list[AnalystType], asset_type: AssetType, ticker: str | None = None
 ) -> list[AnalystType]:
-    if asset_type != AssetType.CRYPTO:
-        return analysts
-    return [
-        analyst
-        for analyst in analysts
-        if analyst != AnalystType.FUNDAMENTALS
-    ]
+    """The analysts that apply: no fundamentals for crypto, and, when the ticker
+    is known, the chips analyst for Taiwan listings only."""
+    from tradingagents.dataflows.tw_symbols import looks_taiwanese
+
+    dropped = set()
+    if asset_type == AssetType.CRYPTO:
+        dropped |= {AnalystType.FUNDAMENTALS, AnalystType.CHIPS}
+    if ticker is not None and not looks_taiwanese(ticker):
+        dropped.add(AnalystType.CHIPS)
+    return [analyst for analyst in analysts if analyst not in dropped]
 
 
 def _matching_choice(options, default):
@@ -168,7 +173,9 @@ def _matching_choice(options, default):
     return next((value for _, value in options if value == default), None)
 
 
-def select_analysts(asset_type: AssetType = AssetType.STOCK, default=None) -> list[AnalystType]:
+def select_analysts(
+    asset_type: AssetType = AssetType.STOCK, default=None, ticker: str | None = None
+) -> list[AnalystType]:
     """Select analysts using an interactive checkbox.
 
     ``default`` pre-checks the previous run's analysts; the prompt still shows.
@@ -176,6 +183,7 @@ def select_analysts(asset_type: AssetType = AssetType.STOCK, default=None) -> li
     available_analysts = filter_analysts_for_asset_type(
         [value for _, value in ANALYST_CHOICES],
         asset_type,
+        ticker,
     )
     choices = questionary.checkbox(
         "Select Your [Analysts Team]:",

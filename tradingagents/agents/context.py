@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from tradingagents.dataflows.date_window import is_historical
+from tradingagents.dataflows.symbols import taiwan_listing
 from tradingagents.dataflows.vendors.yahoo.fundamentals import get_company_profile
 
 logger = logging.getLogger(__name__)
@@ -199,6 +200,18 @@ def report_or_absent(text: str, source: str) -> str:
     if text:
         return text
     return f"(No {source} report in this run: it is not available, not an empty finding.)"
+
+
+def chips_section(state: Mapping[str, Any]) -> str:
+    """The chips report as a prompt line for a Taiwan listing, else nothing.
+
+    Only Taiwan listings have chip data, so other runs' prompts stay as they were
+    rather than carrying a line about a report that cannot exist.
+    """
+    if not taiwan_listing(str(state.get("company_of_interest", ""))):
+        return ""
+    report = report_or_absent(state.get("chips_report", ""), "chips")
+    return f"\nInstitutional flows and positioning (chips) report: {report}"
 
 
 def get_portfolio_context_from_state(state: Mapping[str, Any]) -> str:

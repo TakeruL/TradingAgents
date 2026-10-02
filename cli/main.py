@@ -7,6 +7,7 @@ from cli.models import AnalystType, AssetType
 from cli.prompts import filter_analysts_for_asset_type, parse_analysts
 from cli.run import run_analysis
 from tradingagents.backtest import iter_grid, run_backtest, summarize
+from tradingagents.dataflows.tw_symbols import looks_taiwanese
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.portfolio import load_portfolio
 
@@ -103,7 +104,7 @@ def backtest(
     end: str = typer.Option(..., "--end", help="Last analysis date, YYYY-MM-DD"),
     every: int = typer.Option(7, "--every", help="Days between analysis dates"),
     analysts: str = typer.Option(
-        None, "--analysts", help="Comma-separated analysts to run: market, sentiment, news, fundamentals; omit for all the asset type allows"
+        None, "--analysts", help="Comma-separated analysts to run: market, sentiment, news, fundamentals, chips (Taiwan stocks); omit for all the asset type allows"
     ),
     asset_type: str = typer.Option("stock", "--asset-type", help="stock or crypto"),
     portfolio: str = typer.Option(
@@ -115,22 +116,25 @@ def backtest(
 ):
     """Score past decisions over a grid of tickers and dates."""
 
+    names = [t.strip() for t in tickers.split(",") if t.strip()]
+    if not names:
+        console.print("[red]No ticker to analyze; pass them comma-separated, e.g. NVDA,AAPL[/red]")
+        raise typer.Exit(code=1)
+
     try:
         dates = iter_grid(start, end, every)
         book = load_portfolio(portfolio) if portfolio else None
         kind = AssetType(asset_type.strip().lower())
         # The analysts are named and checked as for an analysis; without a
-        # choice, every analyst the asset type allows runs.
-        chosen = (parse_analysts(analysts, kind) if analysts
-                  else filter_analysts_for_asset_type(list(AnalystType), kind))
+        # choice, every analyst the asset type allows runs. Every ticker runs
+        # the same team, so the chips analyst applies only when all of them are
+        # Taiwan listings: the first other ticker decides.
+        probe = next((t for t in names if not looks_taiwanese(t)), names[0])
+        chosen = (parse_analysts(analysts, kind, probe) if analysts
+                  else filter_analysts_for_asset_type(list(AnalystType), kind, probe))
     except ValueError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from None
-
-    names = [t.strip() for t in tickers.split(",") if t.strip()]
-    if not names:
-        console.print("[red]No ticker to analyze; pass them comma-separated, e.g. NVDA,AAPL[/red]")
-        raise typer.Exit(code=1)
 
     def show_progress(done, total, ticker, date):
         console.print(f"[dim][{done}/{total}] {ticker} {date}[/dim]")
