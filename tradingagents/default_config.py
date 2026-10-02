@@ -13,6 +13,7 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_QUICK_THINK_LLM":      "quick_think_llm",
     "TRADINGAGENTS_LLM_BACKEND_URL":      "backend_url",
     "TRADINGAGENTS_OUTPUT_LANGUAGE":      "output_language",
+    "TRADINGAGENTS_MARKET":               "market",
     "TRADINGAGENTS_MAX_DEBATE_ROUNDS":    "max_debate_rounds",
     "TRADINGAGENTS_MAX_RISK_ROUNDS":      "max_risk_discuss_rounds",
     "TRADINGAGENTS_MAX_TOOL_ROUNDS":      "max_tool_rounds",
@@ -115,9 +116,14 @@ def build_default_config() -> dict:
         # Checkpoint/resume: when True, LangGraph saves state after each node
         # so a crashed run can resume from the last successful step.
         "checkpoint_enabled": False,
+        # Home market. "tw" resolves bare Taiwan codes and Chinese names
+        # (2330, 台積電) to their Yahoo symbol (2330.TW, 6488.TWO) at the entry
+        # point; "us" leaves every ticker as typed. Suffixed symbols (AAPL,
+        # 0700.HK, BTC-USD) work under either.
+        "market": "tw",
         # Output language for analyst reports and final decision
         # Internal agent debate stays in English for reasoning quality
-        "output_language": "English",
+        "output_language": "Traditional Chinese (繁體中文)",
         # Debate and discussion settings
         "max_debate_rounds": 1,
         "max_risk_discuss_rounds": 1,
@@ -132,12 +138,15 @@ def build_default_config() -> dict:
         "global_news_lookback_days": 7,       # macro news lookback window
         # Search queries used by get_global_news for macro headlines. Extend or
         # replace to broaden geographic / sector coverage.
+        # Taiwan's market moves with US rates, the semiconductor cycle and
+        # cross-strait / trade policy, so those lead.
         "global_news_queries": [
+            "Taiwan stock market TAIEX foreign investors",
+            "TSMC semiconductor AI chip demand",
             "Federal Reserve interest rates inflation",
-            "S&P 500 earnings GDP economic outlook",
-            "geopolitical risk trade war sanctions",
-            "ECB Bank of England BOJ central bank policy",
-            "oil commodities supply chain energy",
+            "US China trade tariffs Taiwan export controls",
+            "Taiwan dollar central bank CBC policy",
+            "geopolitical risk Taiwan Strait",
         ],
         # Data vendor configuration
         # Category-level configuration (default for all tools in category).

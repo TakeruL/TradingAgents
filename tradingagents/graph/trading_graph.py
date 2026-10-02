@@ -13,6 +13,7 @@ from tradingagents.agents.rating import run_rating
 from tradingagents.dataflows.config import run_config, run_config_context, set_config
 from tradingagents.dataflows.date_window import get_current_date, is_historical
 from tradingagents.dataflows.symbols import safe_ticker_component
+from tradingagents.dataflows.tw_symbols import resolve_tw_symbol
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.llm_clients import build_llm_kwargs, create_llm_client
 from tradingagents.memory import TradingMemoryLog, settlement
@@ -197,12 +198,15 @@ class TradingAgentsGraph:
         """
         trade_date = _validate_trade_date(trade_date)
 
-        with run_config(self.config), \
-                self.checkpoint_scope(company_name, trade_date, asset_type, portfolio) as thread_id_value:
-            return self._run_graph(
-                company_name, trade_date, asset_type=asset_type,
-                checkpoint_thread_id=thread_id_value, portfolio=portfolio,
-            )
+        with run_config(self.config):
+            # A bare Taiwan code or name (2330, 台積電) becomes its Yahoo symbol
+            # before anything keys a file or a checkpoint on it.
+            company_name = resolve_tw_symbol(company_name)
+            with self.checkpoint_scope(company_name, trade_date, asset_type, portfolio) as thread_id_value:
+                return self._run_graph(
+                    company_name, trade_date, asset_type=asset_type,
+                    checkpoint_thread_id=thread_id_value, portfolio=portfolio,
+                )
 
     def begin_checkpoint(self, company_name, trade_date, asset_type: str = "stock", portfolio=None) -> str | None:
         """Recompile the graph with a per-ticker checkpointer and return the

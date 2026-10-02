@@ -144,6 +144,32 @@ def normalize_symbol(raw: str) -> str:
     return canonical
 
 
+# Taiwan securities as Yahoo spells them: the exchange code (4-6 digits, an
+# optional letter for ETFs such as 00679B) with ``.TW`` for TWSE-listed and
+# ``.TWO`` for TPEx (OTC) securities.
+_TAIWAN_SYMBOL = re.compile(r"^(\d{4,6}[A-Z]?)\.(TW|TWO)$")
+_TAIWAN_LISTINGS = {"TW": "twse", "TWO": "tpex"}
+
+
+def taiwan_listing(symbol: str) -> str | None:
+    """``"twse"`` or ``"tpex"`` for a Taiwan symbol (``2330.TW``, ``6488.TWO``), else None.
+
+    Purely syntactic: it reads the suffix, so it is safe to call anywhere.
+    """
+    if not isinstance(symbol, str):
+        return None
+    match = _TAIWAN_SYMBOL.match(symbol.strip().upper())
+    return _TAIWAN_LISTINGS[match.group(2)] if match else None
+
+
+def tw_stock_id(symbol: str) -> str | None:
+    """The bare exchange code of a Taiwan symbol (``2330.TW`` -> ``2330``), else None."""
+    if not isinstance(symbol, str):
+        return None
+    match = _TAIWAN_SYMBOL.match(symbol.strip().upper())
+    return match.group(1) if match else None
+
+
 # Tickers can contain letters, digits, dot, dash, underscore, caret
 # (index symbols like ^GSPC), equals (futures like GC=F), and plus
 # (forex/CFD symbols like XAUUSD+). None of these enable directory

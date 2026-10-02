@@ -134,7 +134,8 @@ def _prompt_selections(prefs, flags):
         console.print(
             create_question_box(
                 "Step 1: Ticker Symbol",
-                "Enter the ticker, with exchange suffix when needed (e.g. SPY, 0700.HK, BTC-USD)",
+                "Enter a Taiwan stock code or name (e.g. 2330, 台積電), or any ticker "
+                "with its exchange suffix (e.g. AAPL, 0700.HK, BTC-USD)",
                 "SPY",
             )
         )

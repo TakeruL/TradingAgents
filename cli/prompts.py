@@ -12,7 +12,7 @@ from cli.models import AnalystType, AssetType
 from tradingagents.llm_clients.api_key_env import get_api_key_env
 from tradingagents.llm_clients.model_catalog import get_model_options
 
-TICKER_INPUT_EXAMPLES = "SPY, 0700.HK, BTC-USD"
+TICKER_INPUT_EXAMPLES = "2330, 台積電, 6488.TWO, AAPL, BTC-USD"
 
 ANALYST_CHOICES = [
     ("Market Analyst", AnalystType.MARKET),
@@ -60,7 +60,14 @@ def get_ticker() -> str:
         console.print("\n[red]No ticker symbol provided. Exiting...[/red]")
         exit(1)
 
-    return normalize_ticker_symbol(ticker) if ticker.strip() else "SPY"
+    if not ticker.strip():
+        return "SPY"
+    try:
+        return normalize_ticker_symbol(ticker)
+    except ValueError as exc:
+        # A Taiwan stock name that matched nothing, or several: ask again.
+        console.print(f"[red]{exc}[/red]")
+        return get_ticker()
 
 
 def parse_ticker(value: str) -> str:
@@ -106,7 +113,14 @@ def normalize_ticker_symbol(ticker: str) -> str:
     passes through the pipeline is exactly the one the data path will price
     (e.g. ``BTCUSD`` -> ``BTC-USD``, ``XAUUSD`` -> ``GC=F``). Falls back to the
     plain upper-case if the data layer is unavailable.
+
+    In the Taiwan market mode a bare code or Chinese name is first looked up
+    (``2330`` -> ``2330.TW``, ``台積電`` -> ``2330.TW``); a name that matches no
+    listed stock raises ``ValueError``.
     """
+    from tradingagents.dataflows.tw_symbols import resolve_tw_symbol
+
+    ticker = resolve_tw_symbol(ticker)
     try:
         from tradingagents.dataflows.symbols import normalize_symbol
 
@@ -689,7 +703,8 @@ def ask_output_language(default=None) -> str:
     one entered last time is free text, which the menu cannot preselect.
     """
     choices = [
-        questionary.Choice("English (default)", "English"),
+        questionary.Choice("Traditional Chinese (繁體中文)", "Traditional Chinese (繁體中文)"),
+        questionary.Choice("English", "English"),
         questionary.Choice("Chinese (中文)", "Chinese"),
         questionary.Choice("Japanese (日本語)", "Japanese"),
         questionary.Choice("Korean (한국어)", "Korean"),
