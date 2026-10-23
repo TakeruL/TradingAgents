@@ -7,7 +7,12 @@ import yfinance as yf
 from tradingagents.dataflows.config import get_config
 from tradingagents.dataflows.errors import NoMarketDataError
 from tradingagents.dataflows.files import replace_file
-from tradingagents.dataflows.symbols import normalize_symbol, safe_ticker_component, taiwan_listing, tw_stock_id
+from tradingagents.dataflows.symbols import (
+    normalize_symbol,
+    safe_ticker_component,
+    taiwan_listing,
+    tw_stock_id,
+)
 from tradingagents.dataflows.tw_common import ttl_for
 from tradingagents.dataflows.vendors.finmind.common import fetch_dataset
 from tradingagents.dataflows.vendors.yahoo.common import raise_for_empty, yf_retry
