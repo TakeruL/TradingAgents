@@ -207,3 +207,34 @@ def test_the_snapshot_does_not_present_a_filled_price_as_reported(monkeypatch, t
     row = out.split("Latest verified OHLCV row")[1].split("###")[0]
     assert "104.50" not in row and "105.50" not in row  # the previous session's numbers
     assert "106.00" in row  # the close the vendor did report
+
+
+# --- Taiwan bars Yahoo left without prices -----------------------------------
+
+
+@pytest.mark.unit
+def test_taiwan_closeless_trailing_bar_is_taken_from_finmind(monkeypatch):
+    # Yahoo served 3081.TWO's finished 2026-10-02 session with volume only.
+    frame = pd.DataFrame({
+        "Date": pd.to_datetime(["2026-09-30", "2026-10-01", "2026-10-02"]),
+        "Open": [2700.0, 2690.0, None], "High": [2730.0, 2720.0, None],
+        "Low": [2665.0, 2605.0, None], "Close": [2695.0, 2660.0, None],
+        "Volume": [1333306, 1749486, 4645517],
+    })
+    asked = {}
+
+    def fake_fetch(dataset, **kw):
+        asked.update(kw, dataset=dataset)
+        return [{"date": "2026-10-02", "open": 2700, "max": 2800, "min": 2690, "close": 2785}]
+
+    monkeypatch.setattr(ohlcv, "fetch_dataset", fake_fetch)
+    out = ohlcv.fill_tw_closes(frame, "3081.TWO")
+    assert asked["dataset"] == "TaiwanStockPrice" and asked["data_id"] == "3081"
+    assert asked["start_date"] == asked["end_date"] == "2026-10-02"
+    assert out.iloc[-1][["Open", "High", "Low", "Close"]].tolist() == [2700, 2800, 2690, 2785]
+    assert out.iloc[1]["Close"] == 2660.0  # settled bars untouched
+
+    # Any other listing, or a FinMind failure, leaves Yahoo's frame as it was.
+    assert ohlcv.fill_tw_closes(frame, "AAPL")["Close"].isna().iloc[-1]
+    monkeypatch.setattr(ohlcv, "fetch_dataset", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("quota")))
+    assert ohlcv.fill_tw_closes(frame, "3081.TWO")["Close"].isna().iloc[-1]
