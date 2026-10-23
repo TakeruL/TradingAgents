@@ -31,11 +31,12 @@ Taiwan's trading rules. Other markets work as before.
 
 - A Claude model langchain-anthropic has no profile for (`claude-sonnet-5-5` in 1.7.4) was capped at 4,096 output tokens, cutting reports off mid-sentence and leaving some debate turns empty; current Claude models now get 32,000 unless `max_tokens` is set, and `langchain-anthropic` is required at 1.7.5 or later.
 - The news analyst reads the Taiwan market backdrop (`get_tw_market_overview`: TAIEX, institutional flows, futures positioning, USD/TWD) instead of reporting it as unavailable.
+- Global news in the Taiwan mode leads with Taiwan macro headlines from Google News (Taiwan edition), a few per topic in `tw_global_news_queries` (TAIEX and foreign flows, the TWD, the central bank, export orders, the business indicator, prices, tariffs, cross-strait, the Fed and SOX), then the international Yahoo Finance headlines; `global_news_queries` now holds international topics only. Google News searches are paced, retried once and cached.
 - Yahoo price data for a Taiwan listing says it is dividend-adjusted, so a large dividend is not read as a change of price scale.
 
 ### Upgrading
 
-- New defaults: `market` is `tw`, `output_language` is `Traditional Chinese (繁體中文)`, the default analysts include `chips`, and the vendor chains put FinMind and the exchanges first (`core_stock_apis: yfinance,finmind,twse`, `fundamental_data: finmind,twse,sec_edgar,yfinance`, `news_data: finmind,yfinance`, `tw_market_data: finmind,twse`). Non-Taiwan symbols pass the Taiwan vendors without a request.
+- New defaults: `market` is `tw`, `output_language` is `Traditional Chinese (繁體中文)`, the default analysts include `chips`, and the vendor chains put FinMind and the exchanges first (`core_stock_apis: yfinance,finmind,twse`, `fundamental_data: finmind,twse,sec_edgar,yfinance`, `news_data: finmind,google_news_tw,yfinance`, `tw_market_data: finmind,twse`). Non-Taiwan symbols pass the Taiwan vendors without a request.
 - To keep the previous behavior, set `TRADINGAGENTS_MARKET=us` and `TRADINGAGENTS_OUTPUT_LANGUAGE=English`.
 
 ## [0.7.0] — 2026-10-16

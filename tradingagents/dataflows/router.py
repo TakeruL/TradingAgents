@@ -24,6 +24,7 @@ from tradingagents.dataflows.vendors.finmind import (
     prices as finmind_prices,
 )
 from tradingagents.dataflows.vendors.fred import get_macro_data as get_fred_macro_data
+from tradingagents.dataflows.vendors.google_news_tw import get_global_news_tw
 from tradingagents.dataflows.vendors.polymarket import (
     get_prediction_markets as get_polymarket_prediction_markets,
 )
@@ -162,6 +163,7 @@ VENDOR_METHODS = {
         "finmind": finmind_news.get_news,
     },
     "get_global_news": {
+        "google_news_tw": get_global_news_tw,
         "yfinance": get_global_news_yfinance,
         "alpha_vantage": get_alpha_vantage_global_news,
     },

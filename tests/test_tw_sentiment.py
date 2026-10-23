@@ -16,6 +16,14 @@ from tradingagents.agents import context
 from tradingagents.agents.analysts import sentiment_analyst
 from tradingagents.dataflows.vendors import google_news_tw, ptt
 
+
+@pytest.fixture(autouse=True)
+def _google_news_uncached(monkeypatch):
+    """Each test reads its own feed: no disk cache, no pacing or retry pause."""
+    monkeypatch.setattr(google_news_tw, "cached_json", lambda namespace, key, ttl, fetch: fetch())
+    monkeypatch.setattr(google_news_tw, "MIN_INTERVAL", 0)
+    monkeypatch.setattr(google_news_tw, "RETRY_DELAY", 0)
+
 # 1790943882 = 2026-10-02 12:24:42 UTC; 1790770000 = 2026-09-30; 1780000000 = 2026-05-28.
 SEARCH_PAGE = """<div class="r-list-container action-bar-margin bbs-screen">
 <div class="r-ent">
@@ -162,6 +170,69 @@ def test_google_news_failure_is_unavailable():
     with mock.patch.object(google_news_tw.requests, "get", side_effect=requests.ConnectionError("reset")):
         out = google_news_tw.fetch_google_news_tw("台積電", start_date="2026-09-26", end_date="2026-10-02")
     assert out.startswith("<Google News unavailable")
+
+
+@pytest.mark.unit
+def test_google_news_retries_a_503_once():
+    ok = mock.Mock(content=RSS.encode("utf-8"))
+    ok.raise_for_status.return_value = None
+    busy = mock.Mock()
+    busy.raise_for_status.side_effect = requests.HTTPError("503")
+    with mock.patch.object(google_news_tw.requests, "get", side_effect=[busy, ok]):
+        found = google_news_tw.search_google_news_tw("台積電", start_date="2026-09-26", end_date="2026-10-02")
+    assert [title for _, title, _ in found] == ["台積電法說10/15登場", "台積電2奈米擴產"]
+
+
+def _feeds(by_query):
+    """requests.get stand-in answering each Taiwan topic with its own items."""
+    def get(url, params, **kwargs):
+        query = params["q"].split(" after:")[0]
+        if by_query.get(query) is None:
+            raise requests.ConnectionError("503")
+        items = "".join(
+            f"<item><title>{t}</title><pubDate>Thu, 22 Oct 2026 01:00:00 GMT</pubDate>"
+            f"<source url='x'>經濟日報</source></item>" for t in by_query[query])
+        response = mock.Mock(content=f"<rss><channel>{items}</channel></rss>".encode())
+        response.raise_for_status.return_value = None
+        return response
+    return get
+
+
+@pytest.mark.unit
+def test_global_news_puts_taiwan_macro_topics_first(monkeypatch):
+    config = {"market": "tw", "global_news_lookback_days": 7, "global_news_article_limit": 10,
+              "tw_global_news_queries": ["新台幣 匯率", "央行 利率", "台海"],
+              "tw_global_news_article_limit": 6}
+    monkeypatch.setattr(google_news_tw, "get_config", lambda: config)
+    monkeypatch.setattr(google_news_tw, "get_global_news_yfinance", lambda *a: "<yahoo headlines>")
+    feeds = {"新台幣 匯率": ["新台幣貶2分", "新台幣失守32.6", "匯市一", "匯市二"],
+             "央行 利率": ["央行理監事會將開", "新台幣貶2分"], "台海": None}
+    with mock.patch.object(google_news_tw.requests, "get", side_effect=_feeds(feeds)):
+        out = google_news_tw.get_global_news_tw("2026-10-23")
+    taiwan, international = out.split("## International news (Yahoo Finance)")
+    # Two headlines per topic (6 over 3 topics), each headline once.
+    assert taiwan.count("新台幣貶2分") == 1 and "匯市一" not in taiwan
+    assert "### 央行 利率" in taiwan and "央行理監事會將開" in taiwan
+    assert "<1 of 3 topics could not be read" in taiwan
+    assert international.strip() == "<yahoo headlines>"
+
+
+@pytest.mark.unit
+def test_global_news_is_yahoos_alone_outside_the_taiwan_mode(monkeypatch):
+    monkeypatch.setattr(google_news_tw, "get_config", lambda: {"market": "us"})
+    monkeypatch.setattr(google_news_tw, "get_global_news_yfinance", lambda *a: "<yahoo headlines>")
+    with mock.patch.object(google_news_tw.requests, "get", side_effect=AssertionError("no Google call")):
+        assert google_news_tw.get_global_news_tw("2026-10-23") == "<yahoo headlines>"
+
+
+@pytest.mark.unit
+def test_global_news_falls_through_when_google_is_unreachable(monkeypatch):
+    config = {"market": "tw", "global_news_lookback_days": 7, "global_news_article_limit": 10,
+              "tw_global_news_queries": ["台海"]}
+    monkeypatch.setattr(google_news_tw, "get_config", lambda: config)
+    with mock.patch.object(google_news_tw.requests, "get", side_effect=requests.ConnectionError("503")), \
+            pytest.raises(google_news_tw.VendorUnavailableError):
+        google_news_tw.get_global_news_tw("2026-10-23")
 
 
 # --- the sentiment analyst ----------------------------------------------------

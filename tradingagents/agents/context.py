@@ -237,8 +237,9 @@ _TAIWAN_GUIDANCE = {
         "from the latest earnings call (法說會) only if a tool returned it."
     ),
     "news": (
-        "For this Taiwan listing, get_news returns Chinese-language Taiwan financial news; read "
-        "it in full. Weigh the macro forces that move Taiwan stocks: Fed policy and US yields "
+        "For this Taiwan listing, get_news returns Chinese-language Taiwan financial news, and "
+        "get_global_news returns Taiwan macro headlines by topic ahead of international ones; "
+        "read them in full. Weigh the macro forces that move Taiwan stocks: Fed policy and US yields "
         "(get_macro_indicators 'fed_funds_rate', '10y_treasury'), the semiconductor and AI "
         "cycle, the TWD exchange rate and foreign capital flows (get_tw_market_overview: TAIEX, "
         "market-wide institutional flows, foreign TAIEX-futures positioning, USD/TWD), Taiwan's central bank (CBC) "

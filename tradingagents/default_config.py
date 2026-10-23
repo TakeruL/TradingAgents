@@ -147,18 +147,30 @@ def build_default_config() -> dict:
         "news_article_limit": 20,             # max articles per ticker (ticker-news)
         "global_news_article_limit": 10,      # max articles for global/macro news
         "global_news_lookback_days": 7,       # macro news lookback window
-        # Search queries used by get_global_news for macro headlines. Extend or
-        # replace to broaden geographic / sector coverage.
-        # Taiwan's market moves with US rates, the semiconductor cycle and
-        # cross-strait / trade policy, so those lead.
+        # Search queries used by get_global_news for international headlines
+        # (Yahoo Finance search, English). Extend or replace to broaden coverage.
         "global_news_queries": [
-            "Taiwan stock market TAIEX foreign investors",
-            "TSMC semiconductor AI chip demand",
             "Federal Reserve interest rates inflation",
-            "US China trade tariffs Taiwan export controls",
-            "Taiwan dollar central bank CBC policy",
+            "US Treasury yields dollar",
+            "semiconductor AI chip demand Nvidia TSMC",
+            "US China trade tariffs export controls",
             "geopolitical risk Taiwan Strait",
         ],
+        # Taiwan macro topics searched on Google News (Taiwan edition) ahead of
+        # the international headlines when market is "tw"; a few headlines per
+        # topic, up to tw_global_news_article_limit in all.
+        "tw_global_news_queries": [
+            "台股 加權指數 外資",
+            "新台幣 匯率",
+            "央行 理監事會 利率 -韓國 -日本",
+            "外銷訂單 出口",
+            "景氣對策信號",
+            "主計總處 GDP 物價",
+            "美國 關稅 台灣 半導體",
+            "台海 兩岸 情勢",
+            "聯準會 降息 費半",
+        ],
+        "tw_global_news_article_limit": 20,
         # Data vendor configuration
         # Category-level configuration (default for all tools in category).
         # The configured value is the exact vendor chain — requests are NOT silently
@@ -173,7 +185,7 @@ def build_default_config() -> dict:
             # Statements come from FinMind for Taiwan filers (served once their
             # filing deadline passed), SEC EDGAR as filed for US filers, then Yahoo.
             "fundamental_data": "finmind,twse,sec_edgar,yfinance",  # Options: finmind, twse, sec_edgar, alpha_vantage, yfinance
-            "news_data": "finmind,yfinance",     # Options: finmind, alpha_vantage, yfinance
+            "news_data": "finmind,google_news_tw,yfinance",  # Options: finmind, google_news_tw, alpha_vantage, yfinance
             "macro_data": "fred",                # Options: fred (needs FRED_API_KEY)
             "prediction_markets": "polymarket",  # Options: polymarket (keyless)
             "tw_market_data": "finmind,twse",    # Options: finmind, twse (Taiwan securities only)
