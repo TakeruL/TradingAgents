@@ -418,6 +418,7 @@ def get_tw_market_overview(
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"],
     look_back_days: Annotated[int, "calendar days to look back (default 14)"] = 14,
     trade_date: Annotated[str, InjectedState("trade_date")] = "",
+    company: Annotated[str, InjectedState("company_of_interest")] = "",
 ) -> str:
     """
     Retrieve the Taiwan market backdrop: the TAIEX, market-wide institutional
@@ -430,4 +431,6 @@ def get_tw_market_overview(
     Returns:
         str: Markdown tables for each market series
     """
+    if company and not taiwan_listing(company):
+        return not_taiwan_notice("get_tw_market_overview", company)
     return route_to_vendor("get_tw_market_overview", as_of(curr_date, trade_date), look_back_days)

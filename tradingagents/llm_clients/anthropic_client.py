@@ -38,6 +38,14 @@ def _supports_effort(model: str) -> bool:
     return (major, minor) >= _EFFORT_MIN_VERSION[family]
 
 
+# langchain-anthropic caps a model it has no profile for at 4,096 output tokens
+# (1.7.4 has none for claude-sonnet-5-5). That cuts a report off mid-sentence,
+# and with thinking on it can leave no text at all. Current models get this
+# instead, unless max_tokens is configured.
+_UNPROFILED_MAX_TOKENS = 4096
+_CURRENT_MODEL_MAX_TOKENS = 32000
+
+
 class NormalizedChatAnthropic(ChatAnthropic):
     """ChatAnthropic with normalized content output.
 
@@ -71,7 +79,12 @@ class AnthropicClient(BaseLLMClient):
                 continue
             llm_kwargs[key] = self.kwargs[key]
 
-        return NormalizedChatAnthropic(**llm_kwargs)
+        llm = NormalizedChatAnthropic(**llm_kwargs)
+        limit = getattr(llm, "max_tokens", None)
+        if ("max_tokens" not in llm_kwargs and isinstance(limit, int) and limit <= _UNPROFILED_MAX_TOKENS
+                and _EFFORT_MODEL.match(self.model.lower())):
+            llm.max_tokens = _CURRENT_MODEL_MAX_TOKENS
+        return llm
 
     def validate_model(self) -> bool:
         """Validate model for Anthropic."""

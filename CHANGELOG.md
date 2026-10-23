@@ -27,6 +27,12 @@ Taiwan's trading rules. Other markets work as before.
 - For Taiwan listings every agent is told the trading rules (±10% limit, T+2, lots and odd lots, attention and disposition stocks, ex-dividend gaps, monthly revenue), and the market, fundamentals and news analysts, the trader and the portfolio manager get role-specific guidance. A Taiwan listing is named as its exchange lists it (台積電).
 - Prompts for every other instrument are unchanged.
 
+### Fixed
+
+- A Claude model langchain-anthropic has no profile for (`claude-sonnet-5-5` in 1.7.4) was capped at 4,096 output tokens, cutting reports off mid-sentence and leaving some debate turns empty; current Claude models now get 32,000 unless `max_tokens` is set, and `langchain-anthropic` is required at 1.7.5 or later.
+- The news analyst reads the Taiwan market backdrop (`get_tw_market_overview`: TAIEX, institutional flows, futures positioning, USD/TWD) instead of reporting it as unavailable.
+- Yahoo price data for a Taiwan listing says it is dividend-adjusted, so a large dividend is not read as a change of price scale.
+
 ### Upgrading
 
 - New defaults: `market` is `tw`, `output_language` is `Traditional Chinese (繁體中文)`, the default analysts include `chips`, and the vendor chains put FinMind and the exchanges first (`core_stock_apis: yfinance,finmind,twse`, `fundamental_data: finmind,twse,sec_edgar,yfinance`, `news_data: finmind,yfinance`, `tw_market_data: finmind,twse`). Non-Taiwan symbols pass the Taiwan vendors without a request.

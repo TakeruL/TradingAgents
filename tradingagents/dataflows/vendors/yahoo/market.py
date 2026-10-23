@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 from stockstats import wrap
 
 from tradingagents.dataflows.errors import NoMarketDataError, VendorError
-from tradingagents.dataflows.symbols import normalize_symbol
+from tradingagents.dataflows.symbols import normalize_symbol, taiwan_listing
 from tradingagents.dataflows.vendors.yahoo.common import raise_for_empty, yf_retry
 from tradingagents.dataflows.vendors.yahoo.ohlcv import (
     _assert_ohlcv_not_stale,
@@ -65,7 +65,13 @@ def get_YFin_data_online(
     # instrument was priced.
     label = canonical if canonical == symbol.upper() else f"{canonical} (from {symbol})"
     header = f"# Stock data for {label} from {start_date} to {end_date}\n"
-    header += f"# Total records: {len(data)}\n\n"
+    header += f"# Total records: {len(data)}\n"
+    if taiwan_listing(symbol):
+        # Large Taiwan dividends make the adjusted series look like it changes scale.
+        header += ("# Prices are dividend-adjusted: bars before an ex-dividend date (non-zero "
+                   "Dividends) are scaled down by that dividend, so the series is continuous and "
+                   "returns across the date are comparable; traded prices before it were higher.\n")
+    header += "\n"
 
     return header + csv_string
 
