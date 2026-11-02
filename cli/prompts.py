@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -11,6 +12,7 @@ from rich.markup import escape
 
 from cli.display import console
 from cli.models import AnalystType, AssetType
+from tradingagents.dataflows.symbols import safe_ticker_component
 from tradingagents.llm_clients.api_key_env import get_api_key_env
 from tradingagents.llm_clients.model_catalog import get_model_options
 from tradingagents.llm_clients.openai_client import OPENAI_COMPATIBLE_PROVIDERS, SIGNED_IN_PROVIDERS
@@ -36,15 +38,33 @@ _MENU_STYLE = questionary.Style([
 ])
 
 
-def is_valid_ticker_input(value: str) -> bool:
-    """Whether a ticker entry is acceptable (charset + length).
+# A Taiwan stock name as entered: Chinese characters, with letters, digits or "-"
+# alongside (康友-KY); full-width letters are not a name.
+_TW_NAME = re.compile(r"^(?=.*[\u4e00-\u9fff])[\u4e00-\u9fffA-Za-z0-9-]{1,20}$")
 
-    Allows the characters Yahoo symbols use, including ``=`` for futures/forex
-    like ``GC=F`` and ``EURUSD=X`` (#980), and ``^`` for indices. Empty input is
-    allowed (it defaults to SPY downstream).
+
+def is_valid_ticker_input(value: str) -> bool:
+    """Whether a ticker entry names a symbol the run can use.
+
+    The symbol it resolves to (``XAUUSD+`` -> ``GC=F``) must pass the data
+    layer's own check, so the prompt refuses exactly what the run would.
+    Empty input is allowed (it defaults to SPY downstream).
     """
-    v = value.strip()
-    return not v or (all(ch.isalnum() or ch in "._-^=" for ch in v) and len(v) <= 32)
+    if not value.strip():
+        return True
+    from tradingagents.dataflows.tw_symbols import looks_taiwanese
+
+    if looks_taiwanese(value):
+        # A Taiwan code or name is looked up only after the FinMind token prompt,
+        # and resolves to a plain NNNN.TW / NNNN.TWO; one that names no listed
+        # stock is refused there. Here only its form is checked.
+        text = value.strip()
+        return text.isascii() or bool(_TW_NAME.match(text))
+    try:
+        safe_ticker_component(normalize_ticker_symbol(value))
+    except ValueError:
+        return False
+    return True
 
 
 def get_ticker() -> str:

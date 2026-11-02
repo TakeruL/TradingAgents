@@ -38,8 +38,22 @@ def test_normalize_symbol_crypto_and_passthrough(raw, expected):
     ("", True),                 # empty -> defaults to SPY downstream
     ("bad symbol!", False),     # space + '!' rejected
     ("A" * 40, False),          # too long
+    ("XAUUSD+", True),          # a broker's CFD spelling of gold, priced as GC=F
+    ("..", False),              # names a directory, not an instrument
+    ("\uff21\uff21\uff30\uff2c", False),  # full-width letters
 ])
 def test_ticker_input_validation(value, ok):
+    assert is_valid_ticker_input(value) is ok
+
+
+@pytest.mark.parametrize("value,ok", [
+    ("2330", True), ("6488.TWO", True), ("台積電", True), ("康友-KY", True),
+    ("台積 電", False), ("../台積電", False), ("\uff21\uff21\uff30\uff2c", False),
+])
+def test_a_taiwan_entry_is_checked_without_a_lookup(value, ok, monkeypatch):
+    # Resolving a code or name reads FinMind, which must wait for the token prompt.
+    monkeypatch.setattr("tradingagents.dataflows.tw_symbols.resolve_tw_symbol",
+                        lambda raw: (_ for _ in ()).throw(AssertionError("no lookup while validating")))
     assert is_valid_ticker_input(value) is ok
 
 
